@@ -1,0 +1,213 @@
+---
+title: "reg_hw3"
+author: "Kim Min"
+date: "2022-11-08"
+output: html_document
+---
+
+```{r}
+library(data.table)
+library(tidyverse)
+```
+
+```{r}
+edu <- fread('edu75.txt', col.names = c("State","Y","X1","X2","X3","Region"))
+View(edu)
+names(edu)
+```
+
+```{r}
+plot(edu)
+```
+
+```{r}
+#install.packages("HH")
+library(HH)
+
+compute_vif=function(x_mat){
+  size_x=dim(x_mat)
+  vif=0*x_mat[1,];rownames(vif)="VIF"
+  for (i in 1:size_x[2]){
+    y=as.matrix(x_mat[,i]); x=as.matrix(x_mat[,-i])
+    result=summary(lm(y~x))
+    vif[1,i]=1/(1-result$r.squared)}
+  return(vif)
+}
+
+vif(lin)
+```
+
+```{r}
+#원본 데이터 그대로 linear model
+lin = lm(data=edu, Y ~ X1+X2+X3+factor(Region))
+summary(lin)
+png(file="pure_lm.png", width=600, height=500)
+layout(matrix(c(1,2,3,4), 2, 2))
+plot(lin)
+```
+X1과 X2는 유의하고 X3와 region 변수는 유의하지 않은 거 같음
+개별 scatter plot 찍어봐야할듯
+
+```{r}
+png(file="pure_scatter2.png", width=600, height=500)
+layout(matrix(c(1,2,3,4), 2, 2))
+#dev.new(width=20, height=15)
+plot(edu$X1, edu$Y, main="X1과 Y의 산점도")
+#양의 선형 관계, 이상치 있는 거 같긴 함
+plot(edu$X2, edu$Y, main="X2와 Y의 산점도")
+#이상치 있음, 약간 애매해보임
+plot(edu$X3, edu$Y, main="X3와 Y의 산점도")
+#양의 선형 관계, 이상치 있음
+plot(edu$Region, edu$Y, main="Region과 Y의 산점도")
+#3, 4 region은 관련성이 있는 듯 보임
+```
+
+```{r}
+lm1 = lm(data=edu, Y~X1)
+summary(lm1)
+#x1 완전 유의
+#layout(matrix(c(1,2,3,4), 2, 2))
+png(file="x1_leverage.png", width=600, height=500)
+plot(lm1, main="Y~X1 선형 모형에서의 영향점")
+#X1=49 이상치
+```
+
+```{r}
+lm2 = lm(data=edu, Y~X2)
+#summary(lm2)
+#x2 별로 안 유의함, p-value도 이상함
+#layout(matrix(c(1,2,3,4), 2, 2))
+png(file="x2_leverage.png", width=600, height=500)
+plot(lm2, main="Y~X2 선형 모형에서의 영향점")
+#49가 이상치, 정규성 위배
+```
+
+```{r}
+lm3 = lm(data=edu, Y~X3)
+#summary(lm3)
+#x3 완전 유의
+#layout(matrix(c(1,2,3,4), 2, 2))
+png(file="x3_leverage.png", width=600, height=500)
+plot(lm3, main="Y~X3 선형 모형에서의 영향점")
+#49가 이상치
+```
+
+```{r}
+lm4 = lm(data=edu, Y~factor(Region))
+#summary(lm4)
+#x4 하나만 유의
+#layout(matrix(c(1,2,3,4), 2, 2))
+png(file="Region_leverage.png", width=600, height=500)
+plot(lm4, main="Y~Region 선형 모형에서의 영향점")
+#정규성이 살짝 안맞음
+```
+
+```{r}
+### 49번째 obs 삭제 ###
+edu <- edu[-49,]
+#영향점 제거 후 다시 진단
+```
+
+```{r}
+lm1 = lm(data=edu, Y~X1)
+layout(matrix(c(1,2,3,4), 2, 2))
+plot(lm1)
+```
+
+```{r}
+lm2 = lm(data=edu, Y~X2)
+layout(matrix(c(1,2,3,4), 2, 2))
+plot(lm2)
+```
+
+```{r}
+lm3 = lm(data=edu, Y~X3)
+layout(matrix(c(1,2,3,4), 2, 2))
+plot(lm3)
+```
+
+```{r}
+lm4 = lm(data=edu, Y~factor(Region))
+layout(matrix(c(1,2,3,4), 2, 2))
+plot(lm4)
+```
+
+```{r}
+#이상치 제거하고 전부 넣고 선형회귀
+lin2 = lm(data=edu, Y ~ X1+X2+X3+factor(Region))
+summary(lin2)
+```
+
+```{r}
+#범주형변수 anova test
+lin2 = lm(data=edu, Y ~ X1+X2+factor(Region))
+lin2_reduced = lm(data=edu, Y ~ X1+X2)
+anova(lin2_reduced, lin2)
+```
+
+
+```{r}
+#best subset selection
+# install.packages('leaps')
+library(leaps)
+
+fit.best = regsubsets(Y~X1+X2+X3+factor(Region), data=edu, nvmax=6, nbest=1)
+summary(fit.best)
+```
+
+```{r}
+plot(fit.best, scal="r2") #다 들어간 모델 or factor2만 빠진 모델
+png(file="bss_adjr2.png", width=500, height=400)
+plot(fit.best, scal="adjr2") #x3, region2, region3가 빠진 모델
+
+png(file="bss_cp.png", width=500, height=400)
+plot(fit.best, scal="Cp") #x3, region2, region3가 빠진 모델
+
+png(file="bss_bic.png", width=500, height=400)
+plot(fit.best, scal="bic") #x2, x3, region2, region3가 빠진 모델
+```
+
+```{r}
+sfb <- summary(fit.best)
+sfb$adjr2
+sfb$cp
+```
+
+
+```{r}
+#위 best subset selection 중 3번 모델이 가장 좋아 보임
+coef(fit.best, 3) #최종 모델??
+```
+
+```{r}
+#best subset selection (범주형변수 제거)
+# install.packages('leaps')
+library(leaps)
+
+fit.best_r = regsubsets(Y~X1+X2+X3, data=edu, nvmax=3, nbest=1)
+summary(fit.best_r)
+```
+
+```{r}
+plot(fit.best_r, scal="adjr2")
+plot(fit.best_r, scal="Cp")
+plot(fit.best_r, scal="bic")
+
+sfbr <- summary(fit.best_r)
+coef(fit.best_r,2)
+```
+
+```{r}
+#최종 모델?
+model <- function(x1, x2, x3, region){
+  pred = -191.24601386 + 0.05433759*x1 + 0.64988002*x2
+  if (region == 4){pred = pred + 27.04761021}
+  return(pred)
+}
+```
+
+```{r}
+#training rss?
+summary(fit.best)$rss #3번째는 54411.16
+```
+
